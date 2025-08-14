@@ -1,21 +1,16 @@
-
----
-
-## 🔹 GitHub Actions Workflow (AWS-ready)
-
-**`.github/workflows/ci-cd.yml`**
-```yaml
-name: CI/CD — Build → Dockerize → Push to AWS ECR → Deploy to ECS
+name: "CI/CD — Build → Dockerize → Push to AWS ECR → Deploy to ECS"
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
   pull_request:
-    branches: [ main ]
+    branches:
+      - main
 
 permissions:
   contents: read
-  id-token: write     # Required for OIDC AWS auth
+  id-token: write
 
 env:
   AWS_REGION: us-east-1
@@ -27,6 +22,7 @@ env:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -34,7 +30,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: "22.x"
 
       - name: Install dependencies
         run: npm ci
