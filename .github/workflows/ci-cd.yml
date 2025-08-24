@@ -14,10 +14,10 @@ permissions:
 
 env:
   AWS_REGION: us-east-1
-  ECR_REPOSITORY: my-react-app
-  ECS_CLUSTER: my-react-cluster
-  ECS_SERVICE: my-react-service
-  CONTAINER_NAME: web
+  ECR_REPOSITORY: react-ci-cd
+  ECS_CLUSTER: react-ci-cd-cluster
+  ECS_SERVICE: react-ci-cd-service
+  CONTAINER_NAME: react-app
 
 jobs:
   build-and-deploy:
@@ -38,40 +38,41 @@ jobs:
       - name: Build React app
         run: npm run build
 
-      - name: Docker build (local test)
-        run: docker build -t react-ci-cd:latest .
+      # Configure AWS (OIDC)
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
 
-      # -------- AWS steps (future — uncomment when AWS is ready) --------
-      # - name: Configure AWS credentials (OIDC)
-      #   uses: aws-actions/configure-aws-credentials@v4
-      #   with:
-      #     role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
-      #     aws-region: ${{ env.AWS_REGION }}
+      # Login to Amazon ECR
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
 
-      # - name: Login to Amazon ECR
-      #   uses: aws-actions/amazon-ecr-login@v2
+      # Build and push Docker image to ECR
+      - name: Build and push Docker image to ECR
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+            ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:latest
 
-      # - name: Build and push Docker image to ECR
-      #   uses: docker/build-push-action@v4
-      #   with:
-      #     context: .
-      #     push: true
-      #     tags: |
-      #       ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
-      #       ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:latest
+      # Render ECS task definition with new image
+      - name: Render Amazon ECS task definition
+        id: render-task
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: ecs/task-def.json
+          container-name: ${{ env.CONTAINER_NAME }}
+          image: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
 
-      # - name: Render Amazon ECS task definition
-      #   id: render-task
-      #   uses: aws-actions/amazon-ecs-render-task-definition@v1
-      #   with:
-      #     task-definition: ecs/task-def.json
-      #     container-name: ${{ env.CONTAINER_NAME }}
-      #     image: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
-
-      # - name: Deploy to Amazon ECS
-      #   uses: aws-actions/amazon-ecs-deploy-task-definition@v2
-      #   with:
-      #     task-definition: ${{ steps.render-task.outputs.task-definition }}
-      #     service: ${{ env.ECS_SERVICE }}
-      #     cluster: ${{ env.ECS_CLUSTER }}
-      #     wait-for-service-stability: true
+      # Deploy to ECS service
+      - name: Deploy to Amazon ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render-task.outputs.task-definition }}
+          service: ${{ env.ECS_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true

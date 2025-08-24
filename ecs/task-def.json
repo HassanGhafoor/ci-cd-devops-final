@@ -1,0 +1,31 @@
+{
+  "family": "react-ci-cd-task",
+  "networkMode": "awsvpc",
+  "executionRoleArn": "arn:aws:iam::312910855852:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::312910855852:role/ecsTaskExecutionRole",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "containerDefinitions": [
+    {
+      "name": "react-app",
+      "image": "nginx:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 3000,
+          "hostPort": 3000,
+          "protocol": "tcp"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/react-ci-cd-task",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ]
+}
